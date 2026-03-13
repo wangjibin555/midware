@@ -1,5 +1,7 @@
 package Logger
 
+import "Logger/hooks"
+
 // Option 配置选项函数类型
 type Option func(*logger)
 
@@ -28,5 +30,12 @@ func WithCaller(enabled bool) Option {
 func WithStackTrace(enabled bool) Option {
 	return func(l *logger) {
 		l.enableStack = enabled
+	}
+}
+
+// WithHooks 添加日志钩子
+func WithHooks(h ...hooks.Hook) Option {
+	return func(l *logger) {
+		l.hooks = append(l.hooks, h...)
 	}
 }

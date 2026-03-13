@@ -1,10 +1,12 @@
 package Logger
 
 import (
+	"Logger/hooks"
 	"context"
 	"fmt"
 	"os"
 	"sync"
+	"time"
 )
 
 // 定义Level等级
@@ -51,10 +53,11 @@ type Adapter interface {
 type logger struct {
 	adapter      Adapter         //底层日志Zap或者logrus
 	level        Level           //当前日志级别
-	fields       []Field         //链式调用（注意：改为复数形式）
+	fields       []Field         //链式调用
 	ctx          context.Context //关联的 context
 	enableCaller bool            //是否记录调用者信息（文件:行号）
 	enableStack  bool            //是否记录堆栈信息（Error级别以上）
+	hooks        []hooks.Hook    //钩子列表
 	mu           sync.RWMutex    //保护并发访问
 }
 
@@ -90,6 +93,7 @@ func (l *logger) clone() *logger {
 		ctx:          l.ctx,
 		enableCaller: l.enableCaller,
 		enableStack:  l.enableStack,
+		hooks:        l.hooks, // 共享 hooks 列表
 	}
 }
 
@@ -111,6 +115,22 @@ func (l *logger) log(level Level, msg string, fields ...Field) {
 	allFields := make([]Field, 0, len(l.fields)+len(fields))
 	allFields = append(allFields, l.fields...)
 	allFields = append(allFields, fields...)
+
+	// 触发 hooks
+	if len(l.hooks) > 0 {
+		entry := &hooks.Entry{
+			Level:   convertToHookLevel(level),
+			Message: msg,
+			Fields:  convertToHookFields(allFields),
+			Time:    time.Now(),
+		}
+
+		for _, hook := range l.hooks {
+			if shouldFireHook(hook, entry.Level) {
+				_ = hook.Fire(entry) //执行对应hook函数
+			}
+		}
+	}
 	l.mu.RUnlock()
 
 	// 调用适配器记录日志
@@ -266,10 +286,7 @@ func (l *logger) Sync() error {
 	return l.adapter.Sync()
 }
 
-// ============================================
-// 全局单例模式
-// ============================================
-
+// 全局单例
 var (
 	defaultLogger Logger
 	once          sync.Once
@@ -277,8 +294,33 @@ var (
 
 // initDefault 初始化默认 logger（延迟初始化）
 func initDefault() {
-	// TODO: 这里需要一个默认的 Adapter 实现
-	defaultLogger = New(nil, WithLevel(InfoLevel))
+	// 使用 noopAdapter 避免意外输出，强制用户显式配置
+	defaultLogger = New(&noopAdapter{}, WithLevel(InfoLevel))
+
+	// 输出警告到标准错误，提示用户应该显式初始化
+	fmt.Fprintf(os.Stderr, `⚠️  警告：使用了未初始化的默认 Logger（当前不会输出任何日志）
+
+建议显式初始化 Logger：
+    import "Logger/adapter"
+    logger := Logger.New(adapter.NewConsoleAdapter(&adapter.ConsoleOptions{EnableColor: true}))
+    Logger.SetDefault(logger)
+
+或者直接使用实例（推荐）：
+    logger := Logger.New(adapter.NewConsoleAdapter(&adapter.ConsoleOptions{EnableColor: true}))
+    logger.Info("message")
+
+`)
+}
+
+// noopAdapter 内建的空操作适配器（用于默认 logger）
+type noopAdapter struct{}
+
+func (a *noopAdapter) Log(level Level, msg string, fields []Field) {
+	// 不输出任何内容
+}
+
+func (a *noopAdapter) Sync() error {
+	return nil
 }
 
 // Default 获取全局默认 logger
@@ -370,4 +412,51 @@ func WithError(err error) Logger {
 // WithContext 使用全局 logger 关联 context
 func WithContext(ctx context.Context) Logger {
 	return Default().WithContext(ctx)
+}
+
+// convertToHookLevel 将 Logger.Level 转换为 hooks.Level
+func convertToHookLevel(level Level) hooks.Level {
+	switch level {
+	case DebugLevel:
+		return hooks.DebugLevel
+	case InfoLevel:
+		return hooks.InfoLevel
+	case WarnLevel:
+		return hooks.WarnLevel
+	case ErrorLevel:
+		return hooks.ErrorLevel
+	case FatalLevel:
+		return hooks.FatalLevel
+	case PanicLevel:
+		return hooks.PanicLevel
+	default:
+		return hooks.InfoLevel
+	}
+}
+
+// convertToHookFields 将 Logger.Field 转换为 hooks.Field
+func convertToHookFields(fields []Field) []hooks.Field {
+	if len(fields) == 0 {
+		return nil
+	}
+
+	hookFields := make([]hooks.Field, len(fields))
+	for i, field := range fields {
+		hookFields[i] = hooks.Field{
+			Key:   field.Key,
+			Value: field.Value,
+		}
+	}
+	return hookFields
+}
+
+// shouldFireHook 检查 hook 是否应该触发
+func shouldFireHook(hook hooks.Hook, level hooks.Level) bool {
+	levels := hook.Levels()
+	for _, l := range levels {
+		if l == level {
+			return true
+		}
+	}
+	return false
 }

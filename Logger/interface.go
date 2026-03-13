@@ -22,4 +22,9 @@ type Logger interface {
 	Errorf(format string, args ...interface{})
 	Fatalf(format string, args ...interface{})
 	Panicf(format string, args ...interface{})
+
+	// 其他方法
+	Sync() error          // 同步日志缓冲区
+	SetLevel(level Level) // 设置日志级别
+	GetLevel() Level      // 获取当前日志级别
 }
