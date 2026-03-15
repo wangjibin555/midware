@@ -1,12 +1,13 @@
 package Logger
 
 import (
-	"Logger/hooks"
 	"context"
 	"fmt"
 	"os"
 	"sync"
 	"time"
+
+	"github.com/wangjibin555/midware/Logger/hooks"
 )
 
 // 定义Level等级

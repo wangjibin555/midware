@@ -1,8 +1,8 @@
 package adapter
 
 import (
-	"Logger"
 	"fmt"
+	"github.com/wangjibin555/midware/Logger"
 	"os"
 	"strings"
 	"sync"

@@ -1,6 +1,6 @@
 package adapter
 
-import "Logger"
+import "github.com/wangjibin555/midware/Logger"
 
 // NoopAdapter 空操作适配器，不输出任何日志
 // 用于测试或需要禁用日志的场景

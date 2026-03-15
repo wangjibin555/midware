@@ -1,4 +1,4 @@
-module Logger
+module github.com/wangjibin555/midware/Logger
 
 go 1.25.1
 

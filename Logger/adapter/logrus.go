@@ -1,7 +1,7 @@
 package adapter
 
 import (
-	"Logger"
+	"github.com/wangjibin555/midware/Logger"
 	"time"
 
 	"github.com/sirupsen/logrus"

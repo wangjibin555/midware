@@ -1,6 +1,6 @@
 package Logger
 
-import "Logger/hooks"
+import "github.com/wangjibin555/midware/Logger/hooks"
 
 // Option 配置选项函数类型
 type Option func(*logger)

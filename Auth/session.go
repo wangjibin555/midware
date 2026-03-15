@@ -1,8 +1,9 @@
 package Auth
 
 import (
-	"Auth/crypto"
 	"time"
+
+	"github.com/wangjibin555/midware/Auth/crypto"
 )
 
 // ========== Session 存储接口 ==========

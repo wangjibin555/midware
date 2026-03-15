@@ -1,8 +1,9 @@
 package Auth
 
 import (
-	"Auth/crypto"
 	"time"
+
+	"github.com/wangjibin555/midware/Auth/crypto"
 )
 
 // ========== Auth 核心结构 ==========

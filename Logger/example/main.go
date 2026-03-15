@@ -1,10 +1,11 @@
 package main
 
 import (
-	"Logger"
-	"Logger/adapter"
 	"errors"
 	"time"
+
+	"github.com/wangjibin555/midware/Logger"
+	"github.com/wangjibin555/midware/Logger/adapter"
 )
 
 func main() {

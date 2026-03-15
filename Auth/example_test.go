@@ -1,11 +1,12 @@
 package Auth_test
 
 import (
-	"Auth"
-	"Auth/crypto"
 	"fmt"
 	"log"
 	"time"
+
+	"github.com/wangjibin555/midware/Auth"
+	"github.com/wangjibin555/midware/Auth/crypto"
 )
 
 // ========== 示例：简单的内存用户存储 ==========

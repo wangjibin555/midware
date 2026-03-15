@@ -1,4 +1,4 @@
-module Auth
+module github.com/wangjibin555/midware/Auth
 
 go 1.25.1
 
