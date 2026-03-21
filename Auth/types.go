@@ -22,6 +22,14 @@ type Claims struct {
 	Subject     string                 `json:"sub,omitempty"`   // 主题（可选）
 }
 
+// GetUserID 暴露统一用户 ID 访问方法，便于中间件间解耦读取。
+func (c *Claims) GetUserID() string {
+	if c == nil {
+		return ""
+	}
+	return c.UserID
+}
+
 // IsExpired 判断 Token 是否过期
 func (c *Claims) IsExpired() bool {
 	return time.Now().Unix() > c.ExpiresAt

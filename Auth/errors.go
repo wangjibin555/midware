@@ -1,211 +1,162 @@
 package Auth
 
-import "errors"
+import "net/http"
+
+type authError struct {
+	status  int
+	code    string
+	message string
+	cause   error
+}
+
+func (e *authError) Error() string {
+	if e == nil {
+		return ""
+	}
+	if e.cause == nil || e.cause.Error() == "" || e.cause.Error() == e.message {
+		return e.message
+	}
+	return e.message + ": " + e.cause.Error()
+}
+
+func (e *authError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.cause
+}
+
+func (e *authError) StatusCode() int {
+	return e.status
+}
+
+func (e *authError) ErrorCode() string {
+	return e.code
+}
+
+func (e *authError) PublicMessage() string {
+	return e.message
+}
+
+func (e *authError) WithCause(err error) *authError {
+	if e == nil {
+		return nil
+	}
+	clone := *e
+	clone.cause = err
+	return &clone
+}
+
+func newAuthError(status int, code, message string) *authError {
+	return &authError{
+		status:  status,
+		code:    code,
+		message: message,
+	}
+}
 
 // ========== 认证相关错误 ==========
 
 var (
-	// ErrInvalidToken Token 无效
-	ErrInvalidToken = errors.New("invalid token")
-
-	// ErrExpiredToken Token 已过期
-	ErrExpiredToken = errors.New("token expired")
-
-	// ErrTokenNotYetValid Token 还未生效
-	ErrTokenNotYetValid = errors.New("token not yet valid")
-
-	// ErrInvalidSignature 签名无效
-	ErrInvalidSignature = errors.New("invalid signature")
-
-	// ErrMissingToken 缺少 Token
-	ErrMissingToken = errors.New("missing token")
-
-	// ErrRevokedToken Token 已被撤销（在黑名单中）
-	ErrRevokedToken = errors.New("token has been revoked")
-
-	// ErrInvalidCredentials 凭证无效（用户名或密码错误）
-	ErrInvalidCredentials = errors.New("invalid credentials")
-
-	// ErrInvalidTokenFormat Token 格式无效
-	ErrInvalidTokenFormat = errors.New("invalid token format")
+	ErrInvalidToken       = newAuthError(http.StatusUnauthorized, "AUTH_INVALID_TOKEN", "invalid token")
+	ErrExpiredToken       = newAuthError(http.StatusUnauthorized, "AUTH_TOKEN_EXPIRED", "token expired")
+	ErrTokenNotYetValid   = newAuthError(http.StatusUnauthorized, "AUTH_TOKEN_NOT_YET_VALID", "token not yet valid")
+	ErrInvalidSignature   = newAuthError(http.StatusUnauthorized, "AUTH_INVALID_SIGNATURE", "invalid signature")
+	ErrMissingToken       = newAuthError(http.StatusUnauthorized, "AUTH_MISSING_TOKEN", "missing token")
+	ErrRevokedToken       = newAuthError(http.StatusUnauthorized, "AUTH_REVOKED_TOKEN", "token has been revoked")
+	ErrInvalidCredentials = newAuthError(http.StatusUnauthorized, "AUTH_INVALID_CREDENTIALS", "invalid credentials")
+	ErrInvalidTokenFormat = newAuthError(http.StatusUnauthorized, "AUTH_INVALID_TOKEN_FORMAT", "invalid token format")
 )
 
 // ========== 授权相关错误 ==========
 
 var (
-	// ErrPermissionDenied 权限不足
-	ErrPermissionDenied = errors.New("permission denied")
-
-	// ErrRoleNotFound 角色不存在
-	ErrRoleNotFound = errors.New("role not found")
-
-	// ErrPermissionInvalid 权限无效
-	ErrPermissionInvalid = errors.New("permission invalid")
-
-	// ErrUserNotAuthorized 用户未授权
-	ErrUserNotAuthorized = errors.New("user not authorized")
-
-	// ErrInsufficientPrivileges 权限不足（更具体）
-	ErrInsufficientPrivileges = errors.New("insufficient privileges")
+	ErrPermissionDenied       = newAuthError(http.StatusForbidden, "AUTH_PERMISSION_DENIED", "permission denied")
+	ErrRoleNotFound           = newAuthError(http.StatusNotFound, "AUTH_ROLE_NOT_FOUND", "role not found")
+	ErrPermissionInvalid      = newAuthError(http.StatusBadRequest, "AUTH_PERMISSION_INVALID", "permission invalid")
+	ErrUserNotAuthorized      = newAuthError(http.StatusForbidden, "AUTH_USER_NOT_AUTHORIZED", "user not authorized")
+	ErrInsufficientPrivileges = newAuthError(http.StatusForbidden, "AUTH_INSUFFICIENT_PRIVILEGES", "insufficient privileges")
 )
 
 // ========== 用户相关错误 ==========
 
 var (
-	// ErrUserNotFound 用户不存在
-	ErrUserNotFound = errors.New("user not found")
-
-	// ErrUserDisabled 用户已被禁用
-	ErrUserDisabled = errors.New("user disabled")
-
-	// ErrUserAlreadyExists 用户已存在
-	ErrUserAlreadyExists = errors.New("user already exists")
-
-	// ErrInvalidUserID 用户ID无效
-	ErrInvalidUserID = errors.New("invalid user id")
-
-	// ErrUserDeleted 用户已被删除
-	ErrUserDeleted = errors.New("user deleted")
-
-	// ErrInvalidUsername 用户名无效
-	ErrInvalidUsername = errors.New("invalid username")
-
-	// ErrInvalidEmail 邮箱无效
-	ErrInvalidEmail = errors.New("invalid email")
-
-	// ErrInvalidPassword 密码无效
-	ErrInvalidPassword = errors.New("invalid password")
-
-	// ErrWeakPassword 密码强度不足
-	ErrWeakPassword = errors.New("weak password")
+	ErrUserNotFound      = newAuthError(http.StatusNotFound, "AUTH_USER_NOT_FOUND", "user not found")
+	ErrUserDisabled      = newAuthError(http.StatusForbidden, "AUTH_USER_DISABLED", "user disabled")
+	ErrUserAlreadyExists = newAuthError(http.StatusConflict, "AUTH_USER_ALREADY_EXISTS", "user already exists")
+	ErrInvalidUserID     = newAuthError(http.StatusBadRequest, "AUTH_INVALID_USER_ID", "invalid user id")
+	ErrUserDeleted       = newAuthError(http.StatusForbidden, "AUTH_USER_DELETED", "user deleted")
+	ErrInvalidUsername   = newAuthError(http.StatusBadRequest, "AUTH_INVALID_USERNAME", "invalid username")
+	ErrInvalidEmail      = newAuthError(http.StatusBadRequest, "AUTH_INVALID_EMAIL", "invalid email")
+	ErrInvalidPassword   = newAuthError(http.StatusBadRequest, "AUTH_INVALID_PASSWORD", "invalid password")
+	ErrWeakPassword      = newAuthError(http.StatusBadRequest, "AUTH_WEAK_PASSWORD", "weak password")
 )
 
 // ========== Session 相关错误 ==========
 
 var (
-	// ErrSessionNotFound Session 不存在
-	ErrSessionNotFound = errors.New("session not found")
-
-	// ErrSessionExpired Session 已过期
-	ErrSessionExpired = errors.New("session expired")
-
-	// ErrSessionInvalid Session 无效
-	ErrSessionInvalid = errors.New("session invalid")
-
-	// ErrSessionCreationFailed Session 创建失败
-	ErrSessionCreationFailed = errors.New("session creation failed")
+	ErrSessionNotFound       = newAuthError(http.StatusNotFound, "AUTH_SESSION_NOT_FOUND", "session not found")
+	ErrSessionExpired        = newAuthError(http.StatusUnauthorized, "AUTH_SESSION_EXPIRED", "session expired")
+	ErrSessionInvalid        = newAuthError(http.StatusUnauthorized, "AUTH_SESSION_INVALID", "session invalid")
+	ErrSessionCreationFailed = newAuthError(http.StatusInternalServerError, "AUTH_SESSION_CREATION_FAILED", "session creation failed")
 )
 
 // ========== OAuth2 相关错误 ==========
 
 var (
-	// ErrOAuth2InvalidCode OAuth2 授权码无效
-	ErrOAuth2InvalidCode = errors.New("invalid oauth2 code")
-
-	// ErrOAuth2InvalidState OAuth2 State 无效（CSRF 攻击）
-	ErrOAuth2InvalidState = errors.New("invalid oauth2 state")
-
-	// ErrOAuth2TokenExchange OAuth2 Token 交换失败
-	ErrOAuth2TokenExchange = errors.New("oauth2 token exchange failed")
-
-	// ErrOAuth2UserInfoFailed 获取 OAuth2 用户信息失败
-	ErrOAuth2UserInfoFailed = errors.New("oauth2 user info failed")
-
-	// ErrOAuth2InvalidConfig OAuth2 配置无效
-	ErrOAuth2InvalidConfig = errors.New("invalid oauth2 config")
-
-	// ErrOAuth2ProviderNotSupported OAuth2 提供商不支持
-	ErrOAuth2ProviderNotSupported = errors.New("oauth2 provider not supported")
+	ErrOAuth2InvalidCode          = newAuthError(http.StatusBadRequest, "AUTH_OAUTH2_INVALID_CODE", "invalid oauth2 code")
+	ErrOAuth2InvalidState         = newAuthError(http.StatusForbidden, "AUTH_OAUTH2_INVALID_STATE", "invalid oauth2 state")
+	ErrOAuth2TokenExchange        = newAuthError(http.StatusBadGateway, "AUTH_OAUTH2_TOKEN_EXCHANGE_FAILED", "oauth2 token exchange failed")
+	ErrOAuth2UserInfoFailed       = newAuthError(http.StatusBadGateway, "AUTH_OAUTH2_USER_INFO_FAILED", "oauth2 user info failed")
+	ErrOAuth2InvalidConfig        = newAuthError(http.StatusInternalServerError, "AUTH_OAUTH2_INVALID_CONFIG", "invalid oauth2 config")
+	ErrOAuth2ProviderNotSupported = newAuthError(http.StatusBadRequest, "AUTH_OAUTH2_PROVIDER_NOT_SUPPORTED", "oauth2 provider not supported")
 )
 
 // ========== 存储相关错误 ==========
 
 var (
-	// ErrStorageNotFound 存储中找不到数据
-	ErrStorageNotFound = errors.New("storage: key not found")
-
-	// ErrStorageOperation 存储操作失败
-	ErrStorageOperation = errors.New("storage: operation failed")
-
-	// ErrStorageConnection 存储连接失败
-	ErrStorageConnection = errors.New("storage: connection failed")
-
-	// ErrStorageTimeout 存储超时
-	ErrStorageTimeout = errors.New("storage: timeout")
-
-	// ErrStorageInvalidKey 存储键无效
-	ErrStorageInvalidKey = errors.New("storage: invalid key")
+	ErrStorageNotFound   = newAuthError(http.StatusNotFound, "AUTH_STORAGE_NOT_FOUND", "storage: key not found")
+	ErrStorageOperation  = newAuthError(http.StatusInternalServerError, "AUTH_STORAGE_OPERATION_FAILED", "storage: operation failed")
+	ErrStorageConnection = newAuthError(http.StatusServiceUnavailable, "AUTH_STORAGE_CONNECTION_FAILED", "storage: connection failed")
+	ErrStorageTimeout    = newAuthError(http.StatusGatewayTimeout, "AUTH_STORAGE_TIMEOUT", "storage: timeout")
+	ErrStorageInvalidKey = newAuthError(http.StatusBadRequest, "AUTH_STORAGE_INVALID_KEY", "storage: invalid key")
 )
 
 // ========== 缓存相关错误 ==========
 
 var (
-	// ErrCacheNotFound 缓存中找不到数据
-	ErrCacheNotFound = errors.New("cache: key not found")
-
-	// ErrCacheExpired 缓存已过期
-	ErrCacheExpired = errors.New("cache: entry expired")
-
-	// ErrCacheInvalid 缓存无效
-	ErrCacheInvalid = errors.New("cache: invalid entry")
-
-	// ErrCacheFull 缓存已满
-	ErrCacheFull = errors.New("cache: full")
+	ErrCacheNotFound = newAuthError(http.StatusNotFound, "AUTH_CACHE_NOT_FOUND", "cache: key not found")
+	ErrCacheExpired  = newAuthError(http.StatusUnauthorized, "AUTH_CACHE_EXPIRED", "cache: entry expired")
+	ErrCacheInvalid  = newAuthError(http.StatusInternalServerError, "AUTH_CACHE_INVALID", "cache: invalid entry")
+	ErrCacheFull     = newAuthError(http.StatusServiceUnavailable, "AUTH_CACHE_FULL", "cache: full")
 )
 
 // ========== 配置相关错误 ==========
 
 var (
-	// ErrInvalidConfig 配置无效
-	ErrInvalidConfig = errors.New("invalid config")
-
-	// ErrMissingConfig 缺少配置
-	ErrMissingConfig = errors.New("missing config")
-
-	// ErrInvalidJWTSecret JWT Secret 无效
-	ErrInvalidJWTSecret = errors.New("invalid jwt secret")
-
-	// ErrConfigValidationFailed 配置验证失败
-	ErrConfigValidationFailed = errors.New("config validation failed")
+	ErrInvalidConfig          = newAuthError(http.StatusBadRequest, "AUTH_INVALID_CONFIG", "invalid config")
+	ErrMissingConfig          = newAuthError(http.StatusBadRequest, "AUTH_MISSING_CONFIG", "missing config")
+	ErrInvalidJWTSecret       = newAuthError(http.StatusBadRequest, "AUTH_INVALID_JWT_SECRET", "invalid jwt secret")
+	ErrConfigValidationFailed = newAuthError(http.StatusBadRequest, "AUTH_CONFIG_VALIDATION_FAILED", "config validation failed")
 )
 
 // ========== 数据库相关错误 ==========
 
 var (
-	// ErrDatabaseConnection 数据库连接失败
-	ErrDatabaseConnection = errors.New("database: connection failed")
-
-	// ErrDatabaseQuery 数据库查询失败
-	ErrDatabaseQuery = errors.New("database: query failed")
-
-	// ErrDatabaseTransaction 数据库事务失败
-	ErrDatabaseTransaction = errors.New("database: transaction failed")
-
-	// ErrDuplicateEntry 数据库中存在重复条目
-	ErrDuplicateEntry = errors.New("database: duplicate entry")
-
-	// ErrForeignKeyViolation 外键约束违反
-	ErrForeignKeyViolation = errors.New("database: foreign key violation")
+	ErrDatabaseConnection  = newAuthError(http.StatusServiceUnavailable, "AUTH_DATABASE_CONNECTION_FAILED", "database: connection failed")
+	ErrDatabaseQuery       = newAuthError(http.StatusInternalServerError, "AUTH_DATABASE_QUERY_FAILED", "database: query failed")
+	ErrDatabaseTransaction = newAuthError(http.StatusInternalServerError, "AUTH_DATABASE_TRANSACTION_FAILED", "database: transaction failed")
+	ErrDuplicateEntry      = newAuthError(http.StatusConflict, "AUTH_DUPLICATE_ENTRY", "database: duplicate entry")
+	ErrForeignKeyViolation = newAuthError(http.StatusConflict, "AUTH_FOREIGN_KEY_VIOLATION", "database: foreign key violation")
 )
 
 // ========== 其他错误 ==========
 
 var (
-	// ErrInternalServer 内部服务器错误
-	ErrInternalServer = errors.New("internal server error")
-
-	// ErrNotImplemented 功能未实现
-	ErrNotImplemented = errors.New("not implemented")
-
-	// ErrInvalidInput 输入无效
-	ErrInvalidInput = errors.New("invalid input")
-
-	// ErrOperationFailed 操作失败
-	ErrOperationFailed = errors.New("operation failed")
-
-	// ErrTimeout 操作超时
-	ErrTimeout = errors.New("timeout")
-
-	// ErrContextCanceled 上下文被取消
-	ErrContextCanceled = errors.New("context canceled")
+	ErrInternalServer  = newAuthError(http.StatusInternalServerError, "AUTH_INTERNAL_SERVER_ERROR", "internal server error")
+	ErrNotImplemented  = newAuthError(http.StatusNotImplemented, "AUTH_NOT_IMPLEMENTED", "not implemented")
+	ErrInvalidInput    = newAuthError(http.StatusBadRequest, "AUTH_INVALID_INPUT", "invalid input")
+	ErrOperationFailed = newAuthError(http.StatusInternalServerError, "AUTH_OPERATION_FAILED", "operation failed")
+	ErrTimeout         = newAuthError(http.StatusGatewayTimeout, "AUTH_TIMEOUT", "timeout")
+	ErrContextCanceled = newAuthError(http.StatusRequestTimeout, "AUTH_CONTEXT_CANCELED", "context canceled")
 )

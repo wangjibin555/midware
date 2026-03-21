@@ -7,6 +7,10 @@ import (
 	"strings"
 )
 
+type HTTPErrorHandler interface {
+	Handle(http.ResponseWriter, *http.Request, error)
+}
+
 // ========== HTTP 中间件 ==========
 
 // Middleware HTTP 限流中间件
@@ -43,6 +47,37 @@ func (r *RateLimiter) Middleware(keyFunc KeyFunc) func(http.Handler) http.Handle
 			}
 
 			// 5. 通过，继续处理
+			next.ServeHTTP(w, req)
+		})
+	}
+}
+
+// MiddlewareWithErrorHandler 使用统一错误处理器输出限流错误。
+func (r *RateLimiter) MiddlewareWithErrorHandler(
+	keyFunc KeyFunc,
+	handler HTTPErrorHandler,
+) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			key := keyFunc(req)
+			if key == "" {
+				next.ServeHTTP(w, req)
+				return
+			}
+
+			result, err := r.Allow(req.Context(), key)
+			if err != nil {
+				handler.Handle(w, req, wrapRuntimeError(err))
+				return
+			}
+
+			setRateLimitHeaders(w, result)
+
+			if !result.Allowed {
+				handler.Handle(w, req, NewRateLimitExceededError(result))
+				return
+			}
+
 			next.ServeHTTP(w, req)
 		})
 	}
@@ -133,8 +168,17 @@ func getUserID(ctx context.Context) string {
 	if userID, ok := ctx.Value("user_id").(string); ok {
 		return userID
 	}
+	if userID, ok := ctx.Value(interface{}("user_id")).(string); ok {
+		return userID
+	}
 	// 尝试从 Context 获取 claims
 	if claims, ok := ctx.Value("claims").(interface{ GetUserID() string }); ok {
+		return claims.GetUserID()
+	}
+	if claims, ok := ctx.Value(interface{}("claims")).(interface{ GetUserID() string }); ok {
+		return claims.GetUserID()
+	}
+	if claims, ok := ctx.Value(interface{}("auth_claims")).(interface{ GetUserID() string }); ok {
 		return claims.GetUserID()
 	}
 	return ""
@@ -147,9 +191,19 @@ func MiddlewareByIP(limiter *RateLimiter) func(http.Handler) http.Handler {
 	return limiter.Middleware(KeyByIP)
 }
 
+// MiddlewareByIPWithErrorHandler 按 IP 限流并使用统一错误处理器。
+func MiddlewareByIPWithErrorHandler(limiter *RateLimiter, handler HTTPErrorHandler) func(http.Handler) http.Handler {
+	return limiter.MiddlewareWithErrorHandler(KeyByIP, handler)
+}
+
 // MiddlewareByUser 按用户限流的中间件
 func MiddlewareByUser(limiter *RateLimiter) func(http.Handler) http.Handler {
 	return limiter.Middleware(KeyByUser)
+}
+
+// MiddlewareByUserWithErrorHandler 按用户限流并使用统一错误处理器。
+func MiddlewareByUserWithErrorHandler(limiter *RateLimiter, handler HTTPErrorHandler) func(http.Handler) http.Handler {
+	return limiter.MiddlewareWithErrorHandler(KeyByUser, handler)
 }
 
 // MiddlewareByEndpoint 按接口限流的中间件
@@ -157,9 +211,19 @@ func MiddlewareByEndpoint(limiter *RateLimiter) func(http.Handler) http.Handler 
 	return limiter.Middleware(KeyByEndpoint)
 }
 
+// MiddlewareByEndpointWithErrorHandler 按接口限流并使用统一错误处理器。
+func MiddlewareByEndpointWithErrorHandler(limiter *RateLimiter, handler HTTPErrorHandler) func(http.Handler) http.Handler {
+	return limiter.MiddlewareWithErrorHandler(KeyByEndpoint, handler)
+}
+
 // MiddlewareByAPIKey 按 API Key 限流的中间件
 func MiddlewareByAPIKey(limiter *RateLimiter) func(http.Handler) http.Handler {
 	return limiter.Middleware(KeyByAPIKey)
+}
+
+// MiddlewareByAPIKeyWithErrorHandler 按 API Key 限流并使用统一错误处理器。
+func MiddlewareByAPIKeyWithErrorHandler(limiter *RateLimiter, handler HTTPErrorHandler) func(http.Handler) http.Handler {
+	return limiter.MiddlewareWithErrorHandler(KeyByAPIKey, handler)
 }
 
 // ========== 自定义响应 ==========
@@ -197,4 +261,21 @@ func (r *RateLimiter) MiddlewareWithCustomResponse(
 			next.ServeHTTP(w, req)
 		})
 	}
+}
+
+func setRateLimitHeaders(w http.ResponseWriter, result *Result) {
+	w.Header().Set("X-RateLimit-Limit", fmt.Sprintf("%d", result.Limit))
+	w.Header().Set("X-RateLimit-Remaining", fmt.Sprintf("%d", result.Remaining))
+	w.Header().Set("X-RateLimit-Reset", result.ResetAt.Format(http.TimeFormat))
+	w.Header().Set("X-RateLimit-Used", fmt.Sprintf("%d", result.Current))
+	if !result.Allowed && result.RetryAfter > 0 {
+		w.Header().Set("Retry-After", fmt.Sprintf("%d", int(result.RetryAfter.Seconds())))
+	}
+}
+
+func wrapRuntimeError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return ErrStorageUnavailable.WithCause(err)
 }

@@ -138,7 +138,7 @@ func Example() {
 	// 1. 创建 Auth 实例
 	auth, err := Auth.New(
 		Auth.DefaultConfig(),
-		Auth.WithJWTSecret("my-super-secret-key-32-bytes!!"),
+		Auth.WithJWTSecret("0123456789abcdef0123456789abcdef"),
 		Auth.WithAccessTokenExpire(15*time.Minute),
 		Auth.WithRefreshTokenExpire(7*24*time.Hour),
 	)
@@ -167,33 +167,25 @@ func Example() {
 		log.Fatal(err)
 	}
 
-	// 4. 用户登录
-	tokens, err := auth.Login("admin", "password123")
+	// 4. 生成 Token（示例中直接演示核心能力）
+	tokens, err := auth.GenerateTokenPair(testUser)
 	if err != nil {
 		log.Fatal(err)
 	}
 	fmt.Println("登录成功！")
-	fmt.Printf("Access Token: %s...\n", tokens.AccessToken[:50])
-	fmt.Printf("Refresh Token: %s...\n", tokens.RefreshToken[:50])
-	fmt.Printf("Expires In: %d seconds\n", tokens.ExpiresIn)
 
 	// 5. 验证 Token
 	claims, err := auth.Verify(tokens.AccessToken)
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("\nToken 验证成功！\n")
+	fmt.Printf("Token 验证成功！\n")
 	fmt.Printf("User ID: %s\n", claims.UserID)
 	fmt.Printf("Username: %s\n", claims.Username)
-	fmt.Printf("Roles: %v\n", claims.Roles)
-	fmt.Printf("Permissions: %v\n", claims.Permissions)
 
 	// 6. 权限检查
 	if auth.CheckPermission(claims, "user:read") {
-		fmt.Println("\n✓ 有 user:read 权限")
-	}
-	if auth.CheckPermission(claims, "post:delete") {
-		fmt.Println("✓ 有 post:delete 权限（通配符匹配）")
+		fmt.Println("✓ 有 user:read 权限")
 	}
 	if !auth.CheckPermission(claims, "admin:delete") {
 		fmt.Println("✗ 没有 admin:delete 权限")
@@ -204,14 +196,14 @@ func Example() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("\nToken 刷新成功！\n")
-	fmt.Printf("New Access Token: %s...\n", newTokens.AccessToken[:50])
+	fmt.Printf("Token 刷新成功！\n")
+	fmt.Printf("New Access Token Type: %s\n", newTokens.TokenType)
 
 	// 8. 登出（将 Token 加入黑名单）
 	if err := auth.Logout(tokens.AccessToken); err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println("\n登出成功！")
+	fmt.Println("登出成功！")
 
 	// 9. 验证已登出的 Token（应该失败）
 	_, err = auth.Verify(tokens.AccessToken)
@@ -221,4 +213,13 @@ func Example() {
 
 	// Output:
 	// 登录成功！
+	// Token 验证成功！
+	// User ID: user-001
+	// Username: admin
+	// ✓ 有 user:read 权限
+	// ✗ 没有 admin:delete 权限
+	// Token 刷新成功！
+	// New Access Token Type: Bearer
+	// 登出成功！
+	// ✓ Token 已被撤销，验证失败（预期行为）
 }

@@ -13,7 +13,7 @@
 | [**Logger**](./Logger) | ✅ 完成 | 结构化日志系统 |
 | **Cache** | 🚧 开发中 | 缓存抽象层 |
 | **RateLimit** | 🚧 开发中 | 限流中间件 |
-| **ErrorHandler** | 🚧 开发中 | 统一错误处理 |
+| [**ErrorHandler**](./ErrorHandler) | ✅ 完成 | 统一错误处理 |
 | **Validator** | 🚧 开发中 | 数据验证 |
 | **Compression** | 🚧 开发中 | 数据压缩 |
 
@@ -27,6 +27,9 @@ go get github.com/wangjibin555/midware/Auth
 
 # 安装 Logger 模块
 go get github.com/wangjibin555/midware/Logger
+
+# 安装 ErrorHandler 模块
+go get github.com/wangjibin555/midware/ErrorHandler
 ```
 
 ### 使用示例
@@ -85,6 +88,13 @@ func main() {
 - ✅ JSON/Text 格式
 - ✅ 文件轮转
 - ✅ 调用者信息
+
+### ErrorHandler 模块
+- ✅ 统一错误模型
+- ✅ HTTP 错误映射
+- ✅ Panic Recover
+- ✅ 标准 JSON 响应
+- ✅ 请求 ID 透传
 
 ## 🛠️ 开发指南
 

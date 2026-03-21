@@ -5,6 +5,10 @@ import (
 	"net/http"
 )
 
+type HTTPErrorHandler interface {
+	Handle(http.ResponseWriter, *http.Request, error)
+}
+
 // ========== Context Key ==========
 
 type contextKey string
@@ -36,16 +40,43 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// 3. 将 Claims 存入 Context
-		ctx := context.WithValue(r.Context(), ClaimsContextKey, claims)
-		next.ServeHTTP(w, r.WithContext(ctx))
+		next.ServeHTTP(w, r.WithContext(withAuthContext(r.Context(), claims)))
 	})
+}
+
+// MiddlewareWithErrorHandler 使用统一错误处理器输出认证错误。
+func (a *Auth) MiddlewareWithErrorHandler(handler HTTPErrorHandler) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			authHeader := r.Header.Get("Authorization")
+			token, err := ExtractTokenFromHeader(authHeader)
+			if err != nil {
+				handler.Handle(w, r, ErrMissingToken.WithCause(err))
+				return
+			}
+
+			claims, err := a.Verify(token)
+			if err != nil {
+				handler.Handle(w, r, err)
+				return
+			}
+
+			next.ServeHTTP(w, r.WithContext(withAuthContext(r.Context(), claims)))
+		})
+	}
 }
 
 // RequireAuth 要求认证（快捷方法）
 func RequireAuth(a *Auth) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return a.Middleware(next)
+	}
+}
+
+// RequireAuthWithErrorHandler 要求认证并用统一错误处理器输出失败结果。
+func RequireAuthWithErrorHandler(a *Auth, handler HTTPErrorHandler) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return a.MiddlewareWithErrorHandler(handler)(next)
 	}
 }
 
@@ -63,6 +94,24 @@ func RequirePermission(a *Auth, permission string) func(http.Handler) http.Handl
 	}
 }
 
+// RequirePermissionWithErrorHandler 要求特定权限并用统一错误处理器输出失败结果。
+func RequirePermissionWithErrorHandler(a *Auth, permission string, handler HTTPErrorHandler) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			claims := GetClaims(r.Context())
+			if claims == nil {
+				handler.Handle(w, r, ErrMissingToken)
+				return
+			}
+			if !claims.HasPermission(permission) {
+				handler.Handle(w, r, ErrPermissionDenied)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 // RequireRole 要求特定角色
 func RequireRole(a *Auth, role string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
@@ -70,6 +119,24 @@ func RequireRole(a *Auth, role string) func(http.Handler) http.Handler {
 			claims := GetClaims(r.Context())
 			if claims == nil || !claims.HasRole(role) {
 				http.Error(w, "Forbidden", http.StatusForbidden)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// RequireRoleWithErrorHandler 要求特定角色并用统一错误处理器输出失败结果。
+func RequireRoleWithErrorHandler(a *Auth, role string, handler HTTPErrorHandler) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			claims := GetClaims(r.Context())
+			if claims == nil {
+				handler.Handle(w, r, ErrMissingToken)
+				return
+			}
+			if !claims.HasRole(role) {
+				handler.Handle(w, r, ErrPermissionDenied)
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -123,4 +190,11 @@ func WithClaims(ctx context.Context, claims *Claims) context.Context {
 // WithUser 将 User 存入 Context
 func WithUser(ctx context.Context, user *User) context.Context {
 	return context.WithValue(ctx, UserContextKey, user)
+}
+
+func withAuthContext(ctx context.Context, claims *Claims) context.Context {
+	ctx = context.WithValue(ctx, ClaimsContextKey, claims)
+	ctx = context.WithValue(ctx, "claims", claims)
+	ctx = context.WithValue(ctx, "user_id", claims.UserID)
+	return ctx
 }
