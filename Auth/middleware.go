@@ -5,6 +5,7 @@ import (
 	"net/http"
 )
 
+// 直接隐式实现对应ErrorHandelr中HTTP错误接口
 type HTTPErrorHandler interface {
 	Handle(http.ResponseWriter, *http.Request, error)
 }

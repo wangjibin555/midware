@@ -12,7 +12,7 @@
 | [**Auth**](./Auth) | ✅ 完成 | 认证授权（JWT、权限、Session） |
 | [**Logger**](./Logger) | ✅ 完成 | 结构化日志系统 |
 | **Cache** | 🚧 开发中 | 缓存抽象层 |
-| **RateLimit** | 🚧 开发中 | 限流中间件 |
+| **RateLimit** | ✅ 完成 | 限流中间件 |
 | [**ErrorHandler**](./ErrorHandler) | ✅ 完成 | 统一错误处理 |
 | **Validator** | 🚧 开发中 | 数据验证 |
 | **Compression** | 🚧 开发中 | 数据压缩 |
